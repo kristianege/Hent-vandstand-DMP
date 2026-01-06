@@ -285,7 +285,7 @@
         const urlWater = `https://vandah.miljoeportal.dk/api/water-levels?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         const urlLogs = `https://vandah.miljoeportal.dk/api/stations/logs?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         
-        // ÆNDRET: Bruger nu /current endpoint i stedet for /all
+        // Bruger /current endpoint for skalaaflæsning
         const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/current?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
 
         try {
@@ -449,12 +449,12 @@
         // Traces
         const traces = [];
 
-        // 1. Vandstand
+        // 1. Vandstand (width sat ned til 1 for tyndere linje)
         if (xWater.length > 0) {
             traces.push({
                 x: xWater, y: yWater,
                 type: 'scatter', mode: 'lines',
-                line: {color: '#4aa3df', width: 2}, 
+                line: {color: '#4aa3df', width: 1}, 
                 name: 'Vandstand'
             });
         }
