@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
     <meta charset="UTF-8">
-    <title>Hent vandstands serier fra DMP</title>
+    <title>Hent vandstandsserier fra DMP</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         /* --- DARK MODE THEME & TYPOGRAPHY --- */
@@ -145,7 +145,7 @@
 <body>
 
 <div class="container">
-    <h2>Hent vandstands serier fra DMP</h2>
+    <h2>Hent vandstandsserier fra DMP</h2>
     
     <div class="controls">
         <div class="full-width">
@@ -167,7 +167,7 @@
 
         <div class="full-width btn-group">
             <button id="btnFetch" onclick="runDataFetch()" disabled>Hent vandstand fra DMP</button>
-            <button id="btnDownload" onclick="downloadData()" disabled>Download vandstands serie</button>
+            <button id="btnDownload" onclick="downloadData()" disabled>Download vandstandsserie</button>
         </div>
     </div>
 
@@ -284,8 +284,6 @@
         // URLs
         const urlWater = `https://vandah.miljoeportal.dk/api/water-levels?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         const urlLogs = `https://vandah.miljoeportal.dk/api/stations/logs?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
-        
-        // Bruger /current endpoint for skalaaflæsning
         const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/current?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
 
         try {
