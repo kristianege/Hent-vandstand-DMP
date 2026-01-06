@@ -10,15 +10,14 @@
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
             margin: 0; 
             padding: 20px; 
-            background-color: #121212; /* Meget mørk baggrund */
-            color: #e0e0e0; /* Lys tekst */
+            background-color: #121212; 
+            color: #e0e0e0; 
         }
         
-        /* Hovedcontainer */
         .container { 
             max-width: 1600px; 
             margin: 0 auto; 
-            background: #1e1e1e; /* Lidt lysere mørk */
+            background: #1e1e1e; 
             padding: 25px; 
             border-radius: 4px; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
@@ -28,13 +27,13 @@
         h2, h3 { margin-top: 0; color: #ffffff; font-weight: 600; }
         h3 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #bbb; border-bottom: 1px solid #333; padding-bottom: 5px; }
         
-        /* --- CONTROLS SECTION --- */
+        /* --- CONTROLS --- */
         .controls { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
             gap: 20px; 
             margin-bottom: 20px; 
-            background: #252526; /* Panel farve */
+            background: #252526; 
             padding: 20px; 
             border-radius: 4px; 
             border: 1px solid #333;
@@ -51,7 +50,6 @@
             font-weight: 600;
         }
         
-        /* Inputs styling for Dark Mode */
         input[type="text"], input[type="date"] { 
             width: 100%; 
             padding: 10px; 
@@ -80,22 +78,18 @@
             font-weight: 600; 
             font-size: 0.9em; 
             letter-spacing: 0.5px;
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.2s;
         }
         
-        #btnFetch { background-color: #0078d4; color: white; } /* Prof Blå */
+        #btnFetch { background-color: #0078d4; color: white; }
         #btnFetch:hover:not(:disabled) { background-color: #006abc; }
         
-        #btnDownload { background-color: #2ea043; color: white; } /* Prof Grøn */
+        #btnDownload { background-color: #2ea043; color: white; }
         #btnDownload:hover:not(:disabled) { background-color: #278c3b; }
         
-        button:disabled { 
-            background-color: #444; 
-            color: #888; 
-            cursor: not-allowed; 
-        }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         
-        /* --- TABLE STYLING --- */
+        /* --- TABLE --- */
         .table-container { 
             max-height: 350px; 
             overflow-y: auto; 
@@ -115,11 +109,7 @@
             border-bottom: 2px solid #444;
             z-index: 2;
         }
-        td { 
-            padding: 8px 10px; 
-            border-bottom: 1px solid #333; 
-            color: #ccc; 
-        }
+        td { padding: 8px 10px; border-bottom: 1px solid #333; color: #ccc; }
         tr:hover td { background-color: #2a2d30; }
 
         /* --- GRAPH --- */
@@ -131,12 +121,12 @@
             background: #1e1e1e; 
         }
 
-        /* --- LOG CONSOLE --- */
+        /* --- LOG --- */
         #debug-log { 
             margin-top: 20px; 
             padding: 15px; 
             background: #000; 
-            color: #00ff41; /* Hacker/Terminal grøn */
+            color: #00ff41; 
             font-family: 'Consolas', 'Monaco', monospace; 
             font-size: 0.8em; 
             border: 1px solid #333;
@@ -146,7 +136,6 @@
             white-space: pre-wrap; 
         }
         
-        /* Scrollbar styling for Webkit (Chrome/Edge/Safari) */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1e1e1e; }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
@@ -208,7 +197,6 @@
     // --- HJÆLPEFUNKTIONER ---
     function log(msg) {
         const d = new Date();
-        // 24-timers format
         const time = d.toLocaleTimeString('da-DK', { hour12: false });
         const logDiv = document.getElementById('debug-log');
         logDiv.innerText = `[${time}] ${msg}\n` + logDiv.innerText;
@@ -296,10 +284,12 @@
         // URLs
         const urlWater = `https://vandah.miljoeportal.dk/api/water-levels?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         const urlLogs = `https://vandah.miljoeportal.dk/api/stations/logs?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
-        const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/all?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
+        
+        // ÆNDRET: Bruger nu /current endpoint i stedet for /all
+        const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/current?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
 
         try {
-            log(`Starter API forespørgsler...`);
+            log(`Starter API forespørgsler (Vandstand, Logs, Skalaaflæsning)...`);
             
             const [respWater, respLogs, respStaff] = await Promise.all([
                 fetch(urlWater),
@@ -343,6 +333,8 @@
                     });
                 }
                 log(`Skalaaflæsning: ${globalStaff.length} målinger.`);
+            } else {
+                 log(`Skalaaflæsning API status: ${respStaff.status}`);
             }
 
             // Opdater UI
@@ -388,7 +380,7 @@
         }
     }
 
-    // --- 4. TEGN GRAF (DARK MODE) ---
+    // --- 4. TEGN GRAF ---
     function drawGraph(measurements, logs, staffData) {
         // Vandstand
         const xWater = [];
@@ -441,12 +433,11 @@
                 let displayText = `<b>${activity}</b>`;
                 if (comment) displayText += `<br>${comment}`;
 
-                // Rød stiplet linje
                 logShapes.push({
                     type: 'line',
                     x0: time, y0: minVal - (rangeSpan * 0.05),
                     x1: time, y1: maxVal + (rangeSpan * 0.05),
-                    line: { color: '#ff4d4d', width: 1, dash: 'dashdot' } // Lysere rød for dark mode
+                    line: { color: '#ff4d4d', width: 1, dash: 'dashdot' }
                 });
 
                 logMarkersX.push(time);
@@ -455,10 +446,10 @@
             }
         });
 
-        // Data Traces
+        // Traces
         const traces = [];
 
-        // 1. Vandstand (Lidt lysere blå for kontrast mod mørk baggrund)
+        // 1. Vandstand
         if (xWater.length > 0) {
             traces.push({
                 x: xWater, y: yWater,
@@ -468,7 +459,7 @@
             });
         }
 
-        // 2. Skalaaflæsning (Lys neongrøn for synlighed)
+        // 2. Skalaaflæsning
         if (xStaff.length > 0) {
             traces.push({
                 x: xStaff, y: yStaff,
@@ -492,16 +483,15 @@
             });
         }
 
-        // Layout Configuration for Dark Mode
         const layout = {
             title: {
                 text: document.getElementById('selectedStationName').value || 'Vandstand',
                 font: { color: '#fff' }
             },
             margin: { t: 40, r: 20, l: 60, b: 40 },
-            paper_bgcolor: '#1e1e1e', // Matcher container
-            plot_bgcolor: '#1e1e1e',  // Matcher container
-            font: { color: '#e0e0e0' }, // Global tekstfarve
+            paper_bgcolor: '#1e1e1e',
+            plot_bgcolor: '#1e1e1e',
+            font: { color: '#e0e0e0' },
             xaxis: { 
                 title: 'Tid (UTC)', 
                 gridcolor: '#333', 
