@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <title>Hent vandstands serier fra DMP</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        /* --- DARK MODE THEME & TYPOGRAPHY --- */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #121212; /* Meget mørk baggrund */
+            color: #e0e0e0; /* Lys tekst */
+        }
+        
+        /* Hovedcontainer */
+        .container { 
+            max-width: 1600px; 
+            margin: 0 auto; 
+            background: #1e1e1e; /* Lidt lysere mørk */
+            padding: 25px; 
+            border-radius: 4px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+            border: 1px solid #333;
+        }
+
+        h2, h3 { margin-top: 0; color: #ffffff; font-weight: 600; }
+        h3 { font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; color: #bbb; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        
+        /* --- CONTROLS SECTION --- */
+        .controls { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            margin-bottom: 20px; 
+            background: #252526; /* Panel farve */
+            padding: 20px; 
+            border-radius: 4px; 
+            border: 1px solid #333;
+        }
+        .full-width { grid-column: 1 / -1; }
+        
+        label { 
+            font-size: 0.85em; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            color: #aaa; 
+            margin-bottom: 6px; 
+            display: block; 
+            font-weight: 600;
+        }
+        
+        /* Inputs styling for Dark Mode */
+        input[type="text"], input[type="date"] { 
+            width: 100%; 
+            padding: 10px; 
+            background-color: #333; 
+            border: 1px solid #444; 
+            border-radius: 3px; 
+            color: #fff; 
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus, input[type="date"]:focus {
+            outline: none;
+            border-color: #007bff;
+            background-color: #383838;
+        }
+        
+        /* --- BUTTONS --- */
+        .btn-group { display: flex; gap: 15px; margin-top: 5px; }
+        
+        button { 
+            padding: 12px 24px; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 3px; 
+            font-weight: 600; 
+            font-size: 0.9em; 
+            letter-spacing: 0.5px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        #btnFetch { background-color: #0078d4; color: white; } /* Prof Blå */
+        #btnFetch:hover:not(:disabled) { background-color: #006abc; }
+        
+        #btnDownload { background-color: #2ea043; color: white; } /* Prof Grøn */
+        #btnDownload:hover:not(:disabled) { background-color: #278c3b; }
+        
+        button:disabled { 
+            background-color: #444; 
+            color: #888; 
+            cursor: not-allowed; 
+        }
+        
+        /* --- TABLE STYLING --- */
+        .table-container { 
+            max-height: 350px; 
+            overflow-y: auto; 
+            border: 1px solid #333; 
+            background-color: #1e1e1e;
+            margin-top: 10px;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        
+        th { 
+            background-color: #2d2d2d; 
+            color: #ddd; 
+            position: sticky; 
+            top: 0; 
+            padding: 10px; 
+            text-align: left; 
+            border-bottom: 2px solid #444;
+            z-index: 2;
+        }
+        td { 
+            padding: 8px 10px; 
+            border-bottom: 1px solid #333; 
+            color: #ccc; 
+        }
+        tr:hover td { background-color: #2a2d30; }
+
+        /* --- GRAPH --- */
+        #graph-container { 
+            width: 100%; 
+            height: 600px; 
+            border: 1px solid #333; 
+            margin-top: 20px; 
+            background: #1e1e1e; 
+        }
+
+        /* --- LOG CONSOLE --- */
+        #debug-log { 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #000; 
+            color: #00ff41; /* Hacker/Terminal grøn */
+            font-family: 'Consolas', 'Monaco', monospace; 
+            font-size: 0.8em; 
+            border: 1px solid #333;
+            border-radius: 3px; 
+            max-height: 150px; 
+            overflow-y: auto; 
+            white-space: pre-wrap; 
+        }
+        
+        /* Scrollbar styling for Webkit (Chrome/Edge/Safari) */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Hent vandstands serier fra DMP</h2>
+    
+    <div class="controls">
+        <div class="full-width">
+            <label>Station</label>
+            <input type="text" list="stationList" id="stationInput" placeholder="Søg efter station..." disabled>
+            <datalist id="stationList"></datalist>
+            <input type="hidden" id="selectedStationId">
+            <input type="hidden" id="selectedStationName">
+        </div>
+
+        <div>
+            <label>Start Dato</label>
+            <input type="date" id="startDate">
+        </div>
+        <div>
+            <label>Slut Dato</label>
+            <input type="date" id="endDate">
+        </div>
+
+        <div class="full-width btn-group">
+            <button id="btnFetch" onclick="runDataFetch()" disabled>Hent vandstand fra DMP</button>
+            <button id="btnDownload" onclick="downloadData()" disabled>Download vandstands serie</button>
+        </div>
+    </div>
+
+    <div id="graph-container"></div>
+
+    <h3>Vandstand tabel</h3>
+    <div class="table-container">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Tidspunkt (UTC)</th>
+                    <th>Værdi (cm)</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="3" style="color:#777; font-style:italic;">Ingen data hentet endnu.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Log</h3>
+    <div id="debug-log">System klar...</div>
+</div>
+
+<script>
+    // --- HJÆLPEFUNKTIONER ---
+    function log(msg) {
+        const d = new Date();
+        // 24-timers format
+        const time = d.toLocaleTimeString('da-DK', { hour12: false });
+        const logDiv = document.getElementById('debug-log');
+        logDiv.innerText = `[${time}] ${msg}\n` + logDiv.innerText;
+    }
+
+    // --- GLOBALE VARIABLER ---
+    let globalMeasurements = []; 
+    let globalLogs = []; 
+    let globalStaff = []; 
+    let stationsMap = {};
+
+    // --- 1. INITIALISERING ---
+    window.addEventListener('DOMContentLoaded', async () => {
+        const today = new Date();
+        const start = new Date("2025-01-01");
+        
+        const fmt = (d) => d.toISOString().split('T')[0];
+        document.getElementById('startDate').value = fmt(start);
+        document.getElementById('endDate').value = fmt(today);
+
+        log("Henter stationsliste...");
+
+        try {
+            const resp = await fetch("https://vandah.miljoeportal.dk/api/stations");
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            
+            const allStations = await resp.json();
+            
+            const filtered = allStations.filter(s => {
+                const type = s.locationType || "";
+                const owner = s.stationOwnerName || "";
+                return type.toLowerCase() === 'vandløb' && owner.toLowerCase().includes('miljøstyrelsen');
+            });
+
+            log(`Fandt ${filtered.length} relevante stationer.`);
+
+            const datalist = document.getElementById('stationList');
+            filtered.forEach(s => {
+                const option = document.createElement('option');
+                const label = `${s.name} (${s.stationId})`;
+                option.value = label; 
+                datalist.appendChild(option);
+                stationsMap[label] = { id: s.stationId, name: s.name };
+            });
+
+            document.getElementById('stationInput').disabled = false;
+            document.getElementById('btnFetch').disabled = false;
+            log("Klar til søgning.");
+
+        } catch (e) {
+            log("FEJL ved hentning af stationer: " + e.message);
+        }
+    });
+
+    document.getElementById('stationInput').addEventListener('input', function() {
+        const val = this.value;
+        if (stationsMap[val]) {
+            document.getElementById('selectedStationId').value = stationsMap[val].id;
+            document.getElementById('selectedStationName').value = stationsMap[val].name;
+            log(`Valgt: ${stationsMap[val].name}`);
+        }
+    });
+
+    // --- 2. HENT DATA ---
+    async function runDataFetch() {
+        const stationId = document.getElementById('selectedStationId').value || document.getElementById('stationInput').value;
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+
+        if (!start || !end) { alert("Vælg både start- og slutdato."); return; }
+        if (new Date(start) > new Date(end)) { alert("Advarsel: Startdato ligger efter slutdato!"); return; }
+        if (!stationId) { alert("Vælg en station først!"); return; }
+
+        const btnFetch = document.getElementById('btnFetch');
+        btnFetch.disabled = true;
+        btnFetch.innerText = "Arbejder...";
+        
+        globalMeasurements = [];
+        globalLogs = [];
+        globalStaff = [];
+
+        const fromStr = `${start}T00:00Z`;
+        const toStr = `${end}T23:59Z`;
+        
+        // URLs
+        const urlWater = `https://vandah.miljoeportal.dk/api/water-levels?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
+        const urlLogs = `https://vandah.miljoeportal.dk/api/stations/logs?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
+        const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/all?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
+
+        try {
+            log(`Starter API forespørgsler...`);
+            
+            const [respWater, respLogs, respStaff] = await Promise.all([
+                fetch(urlWater),
+                fetch(urlLogs),
+                fetch(urlStaff)
+            ]);
+
+            // 2a. Vandstand
+            if (respWater.ok) {
+                const jsonWater = await respWater.json();
+                if (jsonWater && Array.isArray(jsonWater)) {
+                    jsonWater.forEach(stationObj => {
+                        if (stationObj.results && Array.isArray(stationObj.results)) {
+                            globalMeasurements = globalMeasurements.concat(stationObj.results);
+                        }
+                    });
+                }
+                globalMeasurements.sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
+                log(`Vandstand: ${globalMeasurements.length} punkter.`);
+            }
+
+            // 2b. Logs
+            if (respLogs.ok) {
+                const jsonLogs = await respLogs.json();
+                if (Array.isArray(jsonLogs)) {
+                    globalLogs = jsonLogs;
+                } else if (jsonLogs.results && Array.isArray(jsonLogs.results)) {
+                    globalLogs = jsonLogs.results;
+                }
+                log(`Logbog: ${globalLogs.length} notater.`);
+            }
+
+            // 2c. Skalaaflæsning
+            if (respStaff.ok) {
+                const jsonStaff = await respStaff.json();
+                if (Array.isArray(jsonStaff)) {
+                    jsonStaff.forEach(stationObj => {
+                        if (stationObj.results && Array.isArray(stationObj.results)) {
+                            globalStaff = globalStaff.concat(stationObj.results);
+                        }
+                    });
+                }
+                log(`Skalaaflæsning: ${globalStaff.length} målinger.`);
+            }
+
+            // Opdater UI
+            updateTable(globalMeasurements);
+            drawGraph(globalMeasurements, globalLogs, globalStaff);
+            
+            if (globalMeasurements.length > 0) {
+                document.getElementById('btnDownload').disabled = false;
+            }
+
+        } catch (e) {
+            log(`FEJL: ${e.message}`);
+        } finally {
+            btnFetch.disabled = false;
+            btnFetch.innerText = "Hent vandstand fra DMP";
+        }
+    }
+
+    // --- 3. OPDATER TABEL ---
+    function updateTable(data) {
+        const tbody = document.querySelector('#dataTable tbody');
+        tbody.innerHTML = ""; 
+
+        if (data.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='3' style='color:#777; font-style:italic;'>Ingen data fundet i perioden.</td></tr>";
+            return;
+        }
+
+        const limit = Math.min(data.length, 500);
+        for (let i = 0; i < limit; i++) {
+            const row = data[i];
+            const ts = row.measurementDateTime || "N/A";
+            const val = row.result;
+            const type = row.examinationType || "-";
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${ts}</td><td>${val}</td><td>${type}</td>`;
+            tbody.appendChild(tr);
+        }
+        if (data.length > 500) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan='3' style='text-align:center; color:#888;'>... viser kun første 500 af ${data.length} rækker ...</td>`;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // --- 4. TEGN GRAF (DARK MODE) ---
+    function drawGraph(measurements, logs, staffData) {
+        // Vandstand
+        const xWater = [];
+        const yWater = [];
+        let maxVal = -9999;
+        let minVal = 9999;
+
+        measurements.forEach(d => {
+            if (d.measurementDateTime && d.result !== undefined) {
+                xWater.push(d.measurementDateTime);
+                yWater.push(d.result);
+                if(d.result > maxVal) maxVal = d.result;
+                if(d.result < minVal) minVal = d.result;
+            }
+        });
+        
+        // Skalaaflæsning
+        const xStaff = [];
+        const yStaff = [];
+        const tStaff = [];
+
+        staffData.forEach(s => {
+            const ts = s.measurementDateTime;
+            const val = s.result;
+            if (ts && val !== undefined) {
+                xStaff.push(ts);
+                yStaff.push(val);
+                if(val > maxVal) maxVal = val;
+                if(val < minVal) minVal = val;
+                const dObj = new Date(ts);
+                const dateStr = dObj.toLocaleString('da-DK');
+                tStaff.push(`Skalaaflæsning: ${val} cm<br>${dateStr}`);
+            }
+        });
+        
+        if (measurements.length === 0 && staffData.length === 0) { maxVal = 100; minVal = 0; }
+        const rangeSpan = maxVal - minVal;
+
+        // Logs
+        const logShapes = [];
+        const logMarkersX = [];
+        const logMarkersY = [];
+        const logTexts = [];
+
+        logs.forEach(l => {
+            const time = l.dateTime; 
+            if (time) {
+                const activity = l.activityTxt || "Ukendt aktivitet";
+                const comment = l.comment; 
+                let displayText = `<b>${activity}</b>`;
+                if (comment) displayText += `<br>${comment}`;
+
+                // Rød stiplet linje
+                logShapes.push({
+                    type: 'line',
+                    x0: time, y0: minVal - (rangeSpan * 0.05),
+                    x1: time, y1: maxVal + (rangeSpan * 0.05),
+                    line: { color: '#ff4d4d', width: 1, dash: 'dashdot' } // Lysere rød for dark mode
+                });
+
+                logMarkersX.push(time);
+                logMarkersY.push(maxVal); 
+                logTexts.push(displayText);
+            }
+        });
+
+        // Data Traces
+        const traces = [];
+
+        // 1. Vandstand (Lidt lysere blå for kontrast mod mørk baggrund)
+        if (xWater.length > 0) {
+            traces.push({
+                x: xWater, y: yWater,
+                type: 'scatter', mode: 'lines',
+                line: {color: '#4aa3df', width: 2}, 
+                name: 'Vandstand'
+            });
+        }
+
+        // 2. Skalaaflæsning (Lys neongrøn for synlighed)
+        if (xStaff.length > 0) {
+            traces.push({
+                x: xStaff, y: yStaff,
+                type: 'scatter', mode: 'markers',
+                marker: { color: '#00e676', size: 10, symbol: 'circle', line: {color: '#000', width: 1} },
+                text: tStaff,
+                hoverinfo: 'text',
+                name: 'Skalaaflæsning'
+            });
+        }
+
+        // 3. Logbog
+        if (logMarkersX.length > 0) {
+            traces.push({
+                x: logMarkersX, y: logMarkersY,
+                mode: 'markers',
+                marker: { color: '#ff4d4d', size: 10, symbol: 'triangle-down' },
+                text: logTexts,
+                hoverinfo: 'text+x',
+                name: 'Logbog'
+            });
+        }
+
+        // Layout Configuration for Dark Mode
+        const layout = {
+            title: {
+                text: document.getElementById('selectedStationName').value || 'Vandstand',
+                font: { color: '#fff' }
+            },
+            margin: { t: 40, r: 20, l: 60, b: 40 },
+            paper_bgcolor: '#1e1e1e', // Matcher container
+            plot_bgcolor: '#1e1e1e',  // Matcher container
+            font: { color: '#e0e0e0' }, // Global tekstfarve
+            xaxis: { 
+                title: 'Tid (UTC)', 
+                gridcolor: '#333', 
+                zerolinecolor: '#444' 
+            }, 
+            yaxis: { 
+                title: 'Vandstand (cm)', 
+                gridcolor: '#333', 
+                zerolinecolor: '#444' 
+            },
+            shapes: logShapes,
+            hovermode: 'closest',
+            legend: {
+                bgcolor: 'rgba(30,30,30,0.8)',
+                bordercolor: '#444',
+                borderwidth: 1
+            }
+        };
+
+        Plotly.newPlot('graph-container', traces, layout);
+    }
+
+    // --- 5. DOWNLOAD ---
+    function downloadData() {
+        if (!globalMeasurements.length) return;
+        
+        const stationId = document.getElementById('selectedStationId').value;
+        const stationName = document.getElementById('selectedStationName').value;
+        
+        log(`Genererer fil...`);
+        
+        let content = "Dato_UTC\tDato_UTC+1\tVandstand\tEnhed\tStations_nr\tStations_navn\n";
+
+        function formatDateStruct(y, m, d, h, min, s) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${y}${pad(m)}${pad(d)}${pad(h)}${pad(min)}${pad(s)}`;
+        }
+
+        globalMeasurements.forEach(row => {
+            const val = row.result;
+            const ts = row.measurementDateTime; 
+            
+            if (ts) {
+                const d = new Date(ts);
+                
+                // UTC
+                const utcStr = formatDateStruct(
+                    d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
+                    d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()
+                );
+
+                // Dansk Normaltid (UTC+1)
+                const dNorm = new Date(d.getTime() + (3600 * 1000));
+                const normStr = formatDateStruct(
+                    dNorm.getUTCFullYear(), dNorm.getUTCMonth() + 1, dNorm.getUTCDate(),
+                    dNorm.getUTCHours(), dNorm.getUTCMinutes(), dNorm.getUTCSeconds()
+                );
+
+                content += `${utcStr}\t${normStr}\t${val}\tcm\t${stationId}\t${stationName}\n`;
+            }
+        });
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        
+        link.href = url;
+        link.download = `vandstand_${stationId}_${start}_${end}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
