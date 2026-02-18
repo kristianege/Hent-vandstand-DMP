@@ -61,10 +61,12 @@
             box-sizing: border-box;
             transition: border-color 0.2s;
         }
-        input[type="text"]:focus, input[type="date"]:focus {
-            outline: none;
-            border-color: #007bff;
-            background-color: #383838;
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 5px;
         }
         
         /* --- BUTTONS --- */
@@ -82,64 +84,16 @@
         }
         
         #btnFetch { background-color: #0078d4; color: white; }
-        #btnFetch:hover:not(:disabled) { background-color: #006abc; }
-        
         #btnDownload { background-color: #2ea043; color: white; }
-        #btnDownload:hover:not(:disabled) { background-color: #278c3b; }
-        
         button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         
-        /* --- TABLE --- */
-        .table-container { 
-            max-height: 350px; 
-            overflow-y: auto; 
-            border: 1px solid #333; 
-            background-color: #1e1e1e;
-            margin-top: 10px;
-        }
+        /* --- TABLE & GRAPH --- */
+        .table-container { max-height: 350px; overflow-y: auto; border: 1px solid #333; background-color: #1e1e1e; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-        
-        th { 
-            background-color: #2d2d2d; 
-            color: #ddd; 
-            position: sticky; 
-            top: 0; 
-            padding: 10px; 
-            text-align: left; 
-            border-bottom: 2px solid #444;
-            z-index: 2;
-        }
+        th { background-color: #2d2d2d; color: #ddd; position: sticky; top: 0; padding: 10px; text-align: left; border-bottom: 2px solid #444; z-index: 2; }
         td { padding: 8px 10px; border-bottom: 1px solid #333; color: #ccc; }
-        tr:hover td { background-color: #2a2d30; }
-
-        /* --- GRAPH --- */
-        #graph-container { 
-            width: 100%; 
-            height: 600px; 
-            border: 1px solid #333; 
-            margin-top: 20px; 
-            background: #1e1e1e; 
-        }
-
-        /* --- LOG --- */
-        #debug-log { 
-            margin-top: 20px; 
-            padding: 15px; 
-            background: #000; 
-            color: #00ff41; 
-            font-family: 'Consolas', 'Monaco', monospace; 
-            font-size: 0.8em; 
-            border: 1px solid #333;
-            border-radius: 3px; 
-            max-height: 150px; 
-            overflow-y: auto; 
-            white-space: pre-wrap; 
-        }
-        
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e1e1e; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        #graph-container { width: 100%; height: 600px; border: 1px solid #333; margin-top: 20px; background: #1e1e1e; }
+        #debug-log { margin-top: 20px; padding: 15px; background: #000; color: #00ff41; font-family: monospace; font-size: 0.8em; border: 1px solid #333; max-height: 150px; overflow-y: auto; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -165,8 +119,15 @@
             <input type="date" id="endDate">
         </div>
 
+        <div class="full-width">
+            <div class="checkbox-container">
+                <input type="checkbox" id="checkVeg" checked>
+                <label for="checkVeg" style="margin-bottom: 0; text-transform: none;">Vis Vegetationsindeks (Højre y-akse)</label>
+            </div>
+        </div>
+
         <div class="full-width btn-group">
-            <button id="btnFetch" onclick="runDataFetch()" disabled>Hent vandstand fra DMP</button>
+            <button id="btnFetch" onclick="runDataFetch()" disabled>Hent data fra DMP</button>
             <button id="btnDownload" onclick="downloadData()" disabled>Download vandstandsserie</button>
         </div>
     </div>
@@ -194,7 +155,6 @@
 </div>
 
 <script>
-    // --- HJÆLPEFUNKTIONER ---
     function log(msg) {
         const d = new Date();
         const time = d.toLocaleTimeString('da-DK', { hour12: false });
@@ -202,41 +162,27 @@
         logDiv.innerText = `[${time}] ${msg}\n` + logDiv.innerText;
     }
 
-    // --- GLOBALE VARIABLER ---
     let globalMeasurements = []; 
     let globalLogs = []; 
     let globalStaff = []; 
+    let globalVeg = []; 
     let stationsMap = {};
 
-    // --- 1. INITIALISERING ---
     window.addEventListener('DOMContentLoaded', async () => {
         const today = new Date();
         const start = new Date("2025-01-01");
-        
-        const fmt = (d) => d.toISOString().split('T')[0];
-        document.getElementById('startDate').value = fmt(start);
-        document.getElementById('endDate').value = fmt(today);
-
-        log("Henter stationsliste...");
+        document.getElementById('startDate').value = start.toISOString().split('T')[0];
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
 
         try {
             const resp = await fetch("https://vandah.miljoeportal.dk/api/stations");
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            
             const allStations = await resp.json();
+            const filtered = allStations.filter(s => (s.locationType || "").toLowerCase() === 'vandløb' && (s.stationOwnerName || "").toLowerCase().includes('miljøstyrelsen'));
             
-            const filtered = allStations.filter(s => {
-                const type = s.locationType || "";
-                const owner = s.stationOwnerName || "";
-                return type.toLowerCase() === 'vandløb' && owner.toLowerCase().includes('miljøstyrelsen');
-            });
-
-            log(`Fandt ${filtered.length} relevante stationer.`);
-
             const datalist = document.getElementById('stationList');
             filtered.forEach(s => {
-                const option = document.createElement('option');
                 const label = `${s.name} (${s.stationId})`;
+                const option = document.createElement('option');
                 option.value = label; 
                 datalist.appendChild(option);
                 stationsMap[label] = { id: s.stationId, name: s.name };
@@ -244,147 +190,83 @@
 
             document.getElementById('stationInput').disabled = false;
             document.getElementById('btnFetch').disabled = false;
-            log("Klar til søgning.");
-
-        } catch (e) {
-            log("FEJL ved hentning af stationer: " + e.message);
-        }
+            log("Stationer indlæst.");
+        } catch (e) { log("FEJL: " + e.message); }
     });
 
     document.getElementById('stationInput').addEventListener('input', function() {
-        const val = this.value;
-        if (stationsMap[val]) {
-            document.getElementById('selectedStationId').value = stationsMap[val].id;
-            document.getElementById('selectedStationName').value = stationsMap[val].name;
-            log(`Valgt: ${stationsMap[val].name}`);
+        if (stationsMap[this.value]) {
+            document.getElementById('selectedStationId').value = stationsMap[this.value].id;
+            document.getElementById('selectedStationName').value = stationsMap[this.value].name;
         }
     });
 
-    // --- 2. HENT DATA ---
     async function runDataFetch() {
         const stationId = document.getElementById('selectedStationId').value || document.getElementById('stationInput').value;
         const start = document.getElementById('startDate').value;
         const end = document.getElementById('endDate').value;
-
-        if (!start || !end) { alert("Vælg både start- og slutdato."); return; }
-        if (new Date(start) > new Date(end)) { alert("Advarsel: Startdato ligger efter slutdato!"); return; }
-        if (!stationId) { alert("Vælg en station først!"); return; }
+        if (!stationId) { alert("Vælg en station!"); return; }
 
         const btnFetch = document.getElementById('btnFetch');
         btnFetch.disabled = true;
         btnFetch.innerText = "Arbejder...";
         
-        globalMeasurements = [];
-        globalLogs = [];
-        globalStaff = [];
-
         const fromStr = `${start}T00:00Z`;
         const toStr = `${end}T23:59Z`;
         
-        // URLs
         const urlWater = `https://vandah.miljoeportal.dk/api/water-levels?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         const urlLogs = `https://vandah.miljoeportal.dk/api/stations/logs?stationId=${stationId}&from=${fromStr}&to=${toStr}`;
         const urlStaff = `https://vandah.miljoeportal.dk/api/measurements/results/current?stationId=${stationId}&examinationTypeSc=22&from=${fromStr}&to=${toStr}`;
+        const urlVeg = `https://vandah.miljoeportal.dk/api/measurements/results/current?stationId=${stationId}&examinationTypeSc=24&from=${fromStr}&to=${toStr}`;
 
         try {
-            log(`Starter API forespørgsler (Vandstand, Logs, Skalaaflæsning)...`);
-            
-            const [respWater, respLogs, respStaff] = await Promise.all([
-                fetch(urlWater),
-                fetch(urlLogs),
-                fetch(urlStaff)
+            const [respWater, respLogs, respStaff, respVeg] = await Promise.all([
+                fetch(urlWater), fetch(urlLogs), fetch(urlStaff), fetch(urlVeg)
             ]);
 
-            // 2a. Vandstand
             if (respWater.ok) {
-                const jsonWater = await respWater.json();
-                if (jsonWater && Array.isArray(jsonWater)) {
-                    jsonWater.forEach(stationObj => {
-                        if (stationObj.results && Array.isArray(stationObj.results)) {
-                            globalMeasurements = globalMeasurements.concat(stationObj.results);
-                        }
-                    });
-                }
-                globalMeasurements.sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
-                log(`Vandstand: ${globalMeasurements.length} punkter.`);
+                const json = await respWater.json();
+                globalMeasurements = json.flatMap(s => s.results || []).sort((a,b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
             }
-
-            // 2b. Logs
             if (respLogs.ok) {
-                const jsonLogs = await respLogs.json();
-                if (Array.isArray(jsonLogs)) {
-                    globalLogs = jsonLogs;
-                } else if (jsonLogs.results && Array.isArray(jsonLogs.results)) {
-                    globalLogs = jsonLogs.results;
-                }
-                log(`Logbog: ${globalLogs.length} notater.`);
+                const json = await respLogs.json();
+                globalLogs = Array.isArray(json) ? json : (json.results || []);
             }
-
-            // 2c. Skalaaflæsning
             if (respStaff.ok) {
-                const jsonStaff = await respStaff.json();
-                if (Array.isArray(jsonStaff)) {
-                    jsonStaff.forEach(stationObj => {
-                        if (stationObj.results && Array.isArray(stationObj.results)) {
-                            globalStaff = globalStaff.concat(stationObj.results);
-                        }
-                    });
-                }
-                log(`Skalaaflæsning: ${globalStaff.length} målinger.`);
-            } else {
-                 log(`Skalaaflæsning API status: ${respStaff.status}`);
+                const json = await respStaff.json();
+                globalStaff = json.flatMap(s => s.results || []);
+            }
+            if (respVeg.ok) {
+                const json = await respVeg.json();
+                globalVeg = json.flatMap(s => s.results || []).filter(r => r.vegetationIndex !== undefined && r.vegetationIndex !== null);
             }
 
-            // Opdater UI
+            log(`Hentet: ${globalMeasurements.length} vandstand, ${globalLogs.length} logs.`);
             updateTable(globalMeasurements);
-            drawGraph(globalMeasurements, globalLogs, globalStaff);
-            
-            if (globalMeasurements.length > 0) {
-                document.getElementById('btnDownload').disabled = false;
-            }
+            drawGraph(globalMeasurements, globalLogs, globalStaff, globalVeg);
+            document.getElementById('btnDownload').disabled = false;
 
-        } catch (e) {
-            log(`FEJL: ${e.message}`);
-        } finally {
+        } catch (e) { log(`FEJL: ${e.message}`); }
+        finally {
             btnFetch.disabled = false;
-            btnFetch.innerText = "Hent vandstand fra DMP";
+            btnFetch.innerText = "Hent data fra DMP";
         }
     }
 
-    // --- 3. OPDATER TABEL ---
     function updateTable(data) {
         const tbody = document.querySelector('#dataTable tbody');
-        tbody.innerHTML = ""; 
-
-        if (data.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='3' style='color:#777; font-style:italic;'>Ingen data fundet i perioden.</td></tr>";
-            return;
-        }
-
-        const limit = Math.min(data.length, 500);
-        for (let i = 0; i < limit; i++) {
-            const row = data[i];
-            const ts = row.measurementDateTime || "N/A";
-            const val = row.result;
-            const type = row.examinationType || "-";
+        tbody.innerHTML = data.length === 0 ? "<tr><td colspan='3'>Ingen data.</td></tr>" : "";
+        data.slice(0, 500).forEach(r => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${ts}</td><td>${val}</td><td>${type}</td>`;
+            tr.innerHTML = `<td>${r.measurementDateTime}</td><td>${r.result}</td><td>${r.examinationType || '-'}</td>`;
             tbody.appendChild(tr);
-        }
-        if (data.length > 500) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan='3' style='text-align:center; color:#888;'>... viser kun første 500 af ${data.length} rækker ...</td>`;
-            tbody.appendChild(tr);
-        }
+        });
     }
 
-    // --- 4. TEGN GRAF ---
-    function drawGraph(measurements, logs, staffData) {
-        // Vandstand
+    function drawGraph(measurements, logs, staffData, vegData) {
         const xWater = [];
         const yWater = [];
-        let maxVal = -9999;
-        let minVal = 9999;
+        let maxVal = -9999, minVal = 9999;
 
         measurements.forEach(d => {
             if (d.measurementDateTime && d.result !== undefined) {
@@ -395,41 +277,47 @@
             }
         });
         
-        // Skalaaflæsning
         const xStaff = [];
         const yStaff = [];
         const tStaff = [];
-
         staffData.forEach(s => {
-            const ts = s.measurementDateTime;
-            const val = s.result;
-            if (ts && val !== undefined) {
-                xStaff.push(ts);
-                yStaff.push(val);
-                if(val > maxVal) maxVal = val;
-                if(val < minVal) minVal = val;
-                const dObj = new Date(ts);
-                const dateStr = dObj.toLocaleString('da-DK');
-                tStaff.push(`Skalaaflæsning: ${val} cm<br>${dateStr}`);
+            if (s.measurementDateTime && s.result !== undefined) {
+                xStaff.push(s.measurementDateTime);
+                yStaff.push(s.result);
+                if(s.result > maxVal) maxVal = s.result;
+                if(s.result < minVal) minVal = s.result;
+                tStaff.push(`Skalaaflæsning: ${s.result} cm<br>${new Date(s.measurementDateTime).toLocaleString('da-DK')}`);
             }
         });
         
         if (measurements.length === 0 && staffData.length === 0) { maxVal = 100; minVal = 0; }
         const rangeSpan = maxVal - minVal;
 
-        // Logs
         const logShapes = [];
         const logMarkersX = [];
         const logMarkersY = [];
         const logTexts = [];
 
-        logs.forEach(l => {
+        const sortedLogs = [...logs].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+        const TIME_THRESHOLD_MS = 12 * 60 * 60 * 1000; 
+        let currentGroupTime = 0;
+        let groupCount = 0;
+
+        sortedLogs.forEach(l => {
             const time = l.dateTime; 
             if (time) {
+                const logTimeMs = new Date(time).getTime();
                 const activity = l.activityTxt || "Ukendt aktivitet";
                 const comment = l.comment; 
                 let displayText = `<b>${activity}</b>`;
                 if (comment) displayText += `<br>${comment}`;
+
+                if (Math.abs(logTimeMs - currentGroupTime) < TIME_THRESHOLD_MS) {
+                    groupCount++;
+                } else {
+                    currentGroupTime = logTimeMs;
+                    groupCount = 0;
+                }
 
                 logShapes.push({
                     type: 'line',
@@ -438,43 +326,34 @@
                     line: { color: '#ff4d4d', width: 1, dash: 'dashdot' }
                 });
 
+                const offsetStep = rangeSpan > 0 ? rangeSpan * 0.08 : 10;
+                const currentY = maxVal - (groupCount * offsetStep);
+
                 logMarkersX.push(time);
-                logMarkersY.push(maxVal); 
+                logMarkersY.push(currentY); 
                 logTexts.push(displayText);
             }
         });
 
-        // Traces
         const traces = [];
+        if (xWater.length > 0) traces.push({ x: xWater, y: yWater, type: 'scatter', mode: 'lines', line: {color: '#4aa3df', width: 1}, name: 'Vandstand' });
+        if (xStaff.length > 0) traces.push({ x: xStaff, y: yStaff, type: 'scatter', mode: 'markers', marker: { color: '#00e676', size: 10, symbol: 'circle', line: {color: '#000', width: 1} }, text: tStaff, hoverinfo: 'text', name: 'Skalaaflæsning' });
 
-        // 1. Vandstand (width sat ned til 1 for tyndere linje)
-        if (xWater.length > 0) {
+        const showVeg = document.getElementById('checkVeg').checked;
+        if (showVeg && vegData.length > 0) {
             traces.push({
-                x: xWater, y: yWater,
-                type: 'scatter', mode: 'lines',
-                line: {color: '#4aa3df', width: 1}, 
-                name: 'Vandstand'
+                x: vegData.map(d => d.measurementDateTime),
+                y: vegData.map(d => d.vegetationIndex),
+                name: 'Vegetationsindeks', type: 'scatter', mode: 'markers+lines', yaxis: 'y2',
+                line: { color: '#ffa726', dash: 'dot', width: 1 }, marker: { color: '#ffa726', size: 8, symbol: 'diamond' }
             });
         }
 
-        // 2. Skalaaflæsning
-        if (xStaff.length > 0) {
-            traces.push({
-                x: xStaff, y: yStaff,
-                type: 'scatter', mode: 'markers',
-                marker: { color: '#00e676', size: 10, symbol: 'circle', line: {color: '#000', width: 1} },
-                text: tStaff,
-                hoverinfo: 'text',
-                name: 'Skalaaflæsning'
-            });
-        }
-
-        // 3. Logbog
         if (logMarkersX.length > 0) {
             traces.push({
                 x: logMarkersX, y: logMarkersY,
                 mode: 'markers',
-                marker: { color: '#ff4d4d', size: 10, symbol: 'triangle-down' },
+                marker: { color: '#ff4d4d', size: 12, symbol: 'triangle-down' },
                 text: logTexts,
                 hoverinfo: 'text+x',
                 name: 'Logbog'
@@ -482,37 +361,20 @@
         }
 
         const layout = {
-            title: {
-                text: document.getElementById('selectedStationName').value || 'Vandstand',
-                font: { color: '#fff' }
-            },
-            margin: { t: 40, r: 20, l: 60, b: 40 },
-            paper_bgcolor: '#1e1e1e',
-            plot_bgcolor: '#1e1e1e',
-            font: { color: '#e0e0e0' },
-            xaxis: { 
-                title: 'Tid (UTC)', 
-                gridcolor: '#333', 
-                zerolinecolor: '#444' 
-            }, 
-            yaxis: { 
-                title: 'Vandstand (cm)', 
-                gridcolor: '#333', 
-                zerolinecolor: '#444' 
-            },
+            title: { text: document.getElementById('selectedStationName').value || 'Vandstand', font: { color: '#fff' } },
+            margin: { t: 40, r: 60, l: 60, b: 40 },
+            paper_bgcolor: '#1e1e1e', plot_bgcolor: '#1e1e1e', font: { color: '#e0e0e0' },
+            xaxis: { title: 'Tid (UTC)', gridcolor: '#333' }, 
+            yaxis: { title: 'Vandstand (cm)', gridcolor: '#333' },
+            yaxis2: { title: 'Vegetationsindeks', overlaying: 'y', side: 'right', showgrid: false, font: { color: '#ffa726' }, titlefont: { color: '#ffa726' } },
             shapes: logShapes,
             hovermode: 'closest',
-            legend: {
-                bgcolor: 'rgba(30,30,30,0.8)',
-                bordercolor: '#444',
-                borderwidth: 1
-            }
+            legend: { bgcolor: 'rgba(30,30,30,0.8)', bordercolor: '#444', borderwidth: 1 }
         };
 
         Plotly.newPlot('graph-container', traces, layout);
     }
 
-    // --- 5. DOWNLOAD ---
     function downloadData() {
         if (!globalMeasurements.length) return;
         
